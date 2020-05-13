@@ -24,7 +24,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
 
 #if UNITY_EDITOR
     [CustomPropertyDrawer(typeof(SandboxField))]
-    public class SandboxInspectorFieldDrawer : PropertyDrawer
+    public class SandboxFieldDrawer : PropertyDrawer
     {
         private readonly float elementHeight = 18;
         private readonly float edgeIndentY = 2;
@@ -84,7 +84,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
 
         private void Init(SerializedProperty property)
         {
-            serializationPath = property.GetPathNodes().Array2List();
+            serializationPath = property.GetPathNodes().ToList();
             serializationPath.Insert(0, property.GetRootParent().name);
             hierarchy = property.GetSerializationHierarchy(false);
 
@@ -110,7 +110,10 @@ namespace Spiral.EditorToolkit.EditorSandbox
         public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
         {
             Init(property);
-            if (sandboxField == null || sandboxTarget == null) return; // скипаем отрисовку
+            if (sandboxField == null || sandboxTarget == null) return; 
+            // скипаем отрисовку - такая ситуация может возникать в случае, если объект
+            // находится в составе массива/листа/и т.п., и только что был автоматически создан
+            // и/или в массиве появилась новая позиция
 
             // ------------------------------------------------------------------------------------
             EditorGUI.BeginProperty(position, label, property);
@@ -119,7 +122,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
 
             float startX = indentedRect.x;
             float startY = indentedRect.y;
-            float width = indentedRect.width;
+            float width  = indentedRect.width;
             float height = indentedRect.height;
 
             float indentX = startX - position.x;
@@ -128,9 +131,6 @@ namespace Spiral.EditorToolkit.EditorSandbox
 
             float innerWidth = width - spaceX - edgeIndentX - 2;
             float halfInnerWidth = innerWidth * 0.5f - innerEdgeIndentX * 2;
-            float layoutInnerWidth = position.width - spaceX - edgeIndentX - 2;
-
-            float halfW = width * 0.5f;
             float nameLX = startX + innerEdgeIndentX;
 
             float row0Y = startY + GetRowY(0);
@@ -141,38 +141,45 @@ namespace Spiral.EditorToolkit.EditorSandbox
             float col1X = nameLX + halfInnerWidth + spaceX;
             float col1W = startX + width - col1X - innerEdgeIndentY - edgeIndentX;
 
+
             // подложка
             Rect boxRect = new Rect(elementStartX,
                                     startY + edgeIndentY,
                                     width + edgeIndentX,
                                     height - edgeIndentY);
-            GUI.Box(boxRect, "", SpiralEditor.panel);
+            GUI.Box(boxRect, "", SpiralStyles.panel);
 
             // название переменной
-            Rect propertyNameRect = new Rect(nameLX, row0Y, halfW, elementHeight);
-            GUI.Label(propertyNameRect, label, SpiralEditor.smallBoldLabel);
+            Rect propertyNameRect = new Rect(nameLX, row0Y, halfInnerWidth, elementHeight);
+            GUI.Label(propertyNameRect, label, SpiralStyles.smallBoldLabel);
+
+            GUI.enabled = false;
+            MonoScript monoScript = SpiralEditorTools.GetMonoScript(GetType());
+            Rect rect = new Rect(col1X - indentX, row0Y, col1W + indentX, elementHeight);
+            EditorGUI.ObjectField(rect, monoScript, typeof(MonoScript), false);
+            GUI.enabled = true;
 
             // выбор объекта инициализации
             Rect selectTargetContentRect = new Rect(nameLX, row1Y, halfInnerWidth, elementHeight);
-            GUI.Label(selectTargetContentRect, "Target", SpiralEditor.smallBoxedLabel);
+            GUI.Label(selectTargetContentRect, "Target", SpiralStyles.smallBoxedLabel);
             Rect selectParent = new Rect(col1X - indentX, row1Y, col1W + indentX, elementHeight);
             if (sandboxField.selectedTarget < 0 || sandboxField.selectedTarget >= hierarchy.Count)
                 sandboxField.selectedTarget = 0;
             sandboxField.selectedTarget = EditorGUI.Popup(selectParent,
                                                           sandboxField.selectedTarget,
                                                           objectNames,
-                                                          SpiralEditor.miniPopupFont);
+                                                          SpiralStyles.miniPopupFont);
 
             // пространство метода
             Rect methodNamespaceRect = new Rect(nameLX, row2Y, halfInnerWidth, elementHeight);
-            GUI.Label(methodNamespaceRect, "Method", SpiralEditor.smallBoxedLabel);
+            GUI.Label(methodNamespaceRect, "Method", SpiralStyles.smallBoxedLabel);
 
             // выпадающий списоок
             Rect popupRect = new Rect(col1X - indentX, row2Y, col1W + indentX, elementHeight);
             sandboxField.selected = EditorGUI.Popup(popupRect,
                                                     sandboxField.selected,
                                                     methodNames,
-                                                    SpiralEditor.miniPopupFont);
+                                                    SpiralStyles.miniPopupFont);
 
             // положение кнопки
             Rect buttonPos = new Rect(col1X, row3Y, col1W, elementHeight);

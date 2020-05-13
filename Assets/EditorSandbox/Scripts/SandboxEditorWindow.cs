@@ -62,15 +62,15 @@ namespace Spiral.EditorToolkit.EditorSandbox
             }
             Sandbox.checkAverageDeltaEvery = EditorGUILayout.FloatField("Check average every", Sandbox.checkAverageDeltaEvery);
 
-            Sandbox.clearReferences = EditorGUILayout.Toggle("Clear references", Sandbox.clearReferences);
+            Sandbox.autoClearReferences = EditorGUILayout.Toggle("Clear references", Sandbox.autoClearReferences);
             Sandbox.secureMode = EditorGUILayout.Toggle("Secure mode", Sandbox.secureMode);
             EditorGUI.indentLevel -= 1;
 
             SpiralEditor.BeginGroup(GroupType.Horizontal);
             EditorGUILayout.Space();
-            if (SpiralEditor.DrawRoundButton("Save current prefs", GUILayout.Width(150)))
+            if (SpiralEditor.Button("Save current prefs", GUILayout.Width(150)))
             {
-                SandboxPrefs.SaveGlobal();
+                SandboxPrefs.SaveSettings();
             }
             EditorGUILayout.Space();
             SpiralEditor.EndGroup();
@@ -81,23 +81,23 @@ namespace Spiral.EditorToolkit.EditorSandbox
 
         private void DrawHealthMonitor()
         {
-            SpiralEditor.BeginPanel("Simulator's Health Monitor", SpiralEditor.colorLightRed);
+            SpiralEditor.BeginPanel("Simulator's Health Monitor", SpiralStyles.colorLightRed);
             EditorGUI.indentLevel += 1;
 
             float average = Sandbox.averageDeltaTime;
             string strAverage = average.ToString("F4");
 
             EditorGUILayout.LabelField("Average real time step: ", 
-                                       $"{strAverage} s.", 
-                                       SpiralEditor.normalLabel);
+                                       $"{strAverage} s.",
+                                       SpiralStyles.normalLabel);
             EditorGUILayout.LabelField("Events count: ", 
-                                       $"{Sandbox.sandboxCurrentCount} / {Sandbox.sandboxTotalCount}", 
-                                       SpiralEditor.normalLabel);
+                                       $"{Sandbox.sandboxCurrentCount} / {Sandbox.sandboxTotalCount}",
+                                       SpiralStyles.normalLabel);
             EditorGUI.indentLevel -= 1;
 
             SpiralEditor.BeginGroup(GroupType.Horizontal);
             EditorGUILayout.Space();
-            if (SpiralEditor.DrawRoundButton("Kill all events", GUILayout.Width(150)))
+            if (SpiralEditor.Button("Kill all events", GUILayout.Width(150)))
             {
                 Sandbox.RemoveAll();
             }
@@ -144,7 +144,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
             SpiralEditor.EndPanel();
         }
 
-        private bool CheckEventHealth(Sandbox.EventInfo eventInfo)
+        private bool CheckEventHealth(Sandbox.SandboxEventInfo eventInfo)
         {
             if (eventInfo.callback == null) return false;
             if (eventInfo.hasReference)
@@ -161,14 +161,14 @@ namespace Spiral.EditorToolkit.EditorSandbox
             return true;
         }
 
-        private void DrawSanboxEvent(Sandbox.EventInfo sandboxInfo)
+        private void DrawSanboxEvent(Sandbox.SandboxEventInfo sandboxInfo)
         {
             GUILayoutOption buttonWidth = GUILayout.Width(100);
             if (sandboxInfo == null)
             {
-                SpiralEditor.BeginPanel(GroupType.Vertical, SpiralEditor.colorLightRed);
-                EditorGUILayout.LabelField($"IDX {sandboxInfo.idx} broken entry", SpiralEditor.panel);
-                if (SpiralEditor.DrawRoundButton("Kill callback", buttonWidth)) Sandbox.RemoveCallback(sandboxInfo.idx); 
+                SpiralEditor.BeginPanel(GroupType.Vertical, SpiralStyles.colorLightRed);
+                EditorGUILayout.LabelField($"IDX {sandboxInfo.idx} broken entry", SpiralStyles.panel);
+                if (SpiralEditor.Button("Kill callback", buttonWidth)) Sandbox.RemoveCallback(sandboxInfo.idx); 
                 EditorGUILayout.Space(2);
                 SpiralEditor.EndPanel();
             }
@@ -178,16 +178,16 @@ namespace Spiral.EditorToolkit.EditorSandbox
                 Color color;
                 if (good)
                 {
-                    color = sandboxInfo.paused ? SpiralEditor.colorLightYellow : SpiralEditor.colorLightGreen;
+                    color = sandboxInfo.paused ? SpiralStyles.colorLightYellow : SpiralStyles.colorLightGreen;
                 }
                 else
                 {
-                    color = sandboxInfo.paused ? SpiralEditor.colorLightOrange : SpiralEditor.colorLightRed;
+                    color = sandboxInfo.paused ? SpiralStyles.colorLightOrange : SpiralStyles.colorLightRed;
                 }
 
                 SpiralEditor.BeginPanel(GroupType.Vertical, color);
                 string isPaused = sandboxInfo.paused ? "PAUSED" : "IS RUNNING";
-                EditorGUILayout.LabelField($"IDX {sandboxInfo.idx} {isPaused}", SpiralEditor.panel);
+                EditorGUILayout.LabelField($"IDX {sandboxInfo.idx} {isPaused}", SpiralStyles.panel);
 
                 EditorGUI.indentLevel += 1;
                 GUI.enabled = false;
@@ -243,22 +243,22 @@ namespace Spiral.EditorToolkit.EditorSandbox
                 SpiralEditor.BeginGroup(GroupType.Horizontal);
                 EditorGUILayout.Space(2); 
                 GUI.enabled = sandboxInfo.idx != Sandbox.sandboxTotalCount - 1;
-                if (SpiralEditor.DrawRoundButton("Move Down", buttonWidth))
+                if (SpiralEditor.Button("Move Down", buttonWidth))
                 {
                     Sandbox.MoveDown(sandboxInfo.idx);
                 }
                 GUI.enabled = true;
                 EditorGUILayout.Space(2);
-                if (SpiralEditor.DrawRoundButton("Kill callback", buttonWidth)) Sandbox.RemoveCallback(sandboxInfo.idx);
+                if (SpiralEditor.Button("Kill callback", buttonWidth)) Sandbox.RemoveCallback(sandboxInfo.idx);
                 string pause = sandboxInfo.paused ? "Unpause" : "Pause";
-                if (SpiralEditor.DrawRoundButton(pause, buttonWidth))
+                if (SpiralEditor.Button(pause, buttonWidth))
                 {
                     if (sandboxInfo.paused) Sandbox.UnpauseCallback(sandboxInfo.idx);
                     else Sandbox.PauseCallback(sandboxInfo.idx);
                 }
                 EditorGUILayout.Space(2);
                 GUI.enabled = sandboxInfo.idx != 0;
-                if (SpiralEditor.DrawRoundButton("Move Up", buttonWidth))
+                if (SpiralEditor.Button("Move Up", buttonWidth))
                 {
                     Sandbox.MoveUp(sandboxInfo.idx);
                 }

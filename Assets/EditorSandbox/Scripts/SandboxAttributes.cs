@@ -15,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
+using Spiral.Core;
 
 namespace Spiral.EditorToolkit.EditorSandbox
 {
@@ -47,11 +48,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
 
         public static List<MethodInfo> GetTypeSandboxes(Type type)
         {
-            var methods = type.GetMethods(BindingFlags.Public | 
-                                          BindingFlags.NonPublic | 
-                                          BindingFlags.Instance | 
-                                          BindingFlags.Public |
-                                          BindingFlags.Static); // ищём всё, даже бездну, даже дьявола
+            var methods = type.GetEveryMethodInfo();
             return SelectSandboxes(methods);
         }
     }

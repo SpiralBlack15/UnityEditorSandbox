@@ -121,6 +121,58 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &101468242
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 101468243}
+  - component: {fileID: 101468244}
+  m_Layer: 0
+  m_Name: RecursionDemo
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &101468243
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 101468242}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 4
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &101468244
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 101468242}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0e7ded9238add64ab8e443fd8de24a9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  field:
+    m_targetType:
+      id: 0
+    m_selectedTarget: 0
+    m_selected: 0
+  references:
+    version: 1
+    00000000:
+      type: {class: RuntimeType, ns: System, asm: mscorlib}
 --- !u!1 &159910879
 GameObject:
   m_ObjectHideFlags: 0
@@ -174,7 +226,7 @@ MonoBehaviour:
   references:
     version: 1
     00000000:
-      type: {class: RuntimeType, ns: System, asm: mscorlib}
+      type: {class: , ns: , asm: }
 --- !u!1 &364409167
 GameObject:
   m_ObjectHideFlags: 0
@@ -212,7 +264,7 @@ MonoBehaviour:
   - m_targetType:
       id: 0
     m_selectedTarget: 0
-    m_selected: 0
+    m_selected: 2
   - m_targetType:
       id: 0
     m_selectedTarget: 0
@@ -386,12 +438,12 @@ MonoBehaviour:
   sandboxField:
     m_targetType:
       id: 0
-    m_selectedTarget: 0
-    m_selected: 0
+    m_selectedTarget: 1
+    m_selected: -1
   references:
     version: 1
     00000000:
-      type: {class: , ns: , asm: }
+      type: {class: RuntimeType, ns: System, asm: mscorlib}
 --- !u!1 &1106483301
 GameObject:
   m_ObjectHideFlags: 0
@@ -499,7 +551,7 @@ MonoBehaviour:
   references:
     version: 1
     00000000:
-      type: {class: RuntimeType, ns: System, asm: mscorlib}
+      type: {class: , ns: , asm: }
 --- !u!1 &1511661389
 GameObject:
   m_ObjectHideFlags: 0
@@ -587,21 +639,21 @@ MonoBehaviour:
         m_selectedTarget: 3
         m_selected: 0
       - m_targetType:
-          id: 4
+          id: 3
         m_selectedTarget: 5
         m_selected: -1
     - exampleNestedSandbox:
         m_targetType:
-          id: 2
+          id: 3
         m_selectedTarget: 0
         m_selected: 0
       evenMoreNested:
       - m_targetType:
-          id: 2
+          id: 3
         m_selectedTarget: 0
         m_selected: 0
       - m_targetType:
-          id: 5
+          id: 3
         m_selectedTarget: 4
         m_selected: -1
   references:
@@ -613,11 +665,7 @@ MonoBehaviour:
     00000002:
       type: {class: RuntimeType, ns: System, asm: mscorlib}
     00000003:
-      type: {class: RuntimeType, ns: System, asm: mscorlib}
-    00000004:
-      type: {class: RuntimeType, ns: System, asm: mscorlib}
-    00000005:
-      type: {class: RuntimeType, ns: System, asm: mscorlib}
+      type: {class: , ns: , asm: }
 --- !u!4 &1784297133
 Transform:
   m_ObjectHideFlags: 0

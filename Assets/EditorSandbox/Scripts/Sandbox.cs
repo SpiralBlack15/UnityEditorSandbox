@@ -17,8 +17,11 @@ using System;
 using System.Diagnostics;
 using Spiral.Core;
 
+using static UnityEngine.Debug;
+
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEditor.Compilation;
 namespace Spiral.EditorToolkit.EditorSandbox
 {
     public enum SandboxMinimalStep
@@ -28,10 +31,11 @@ namespace Spiral.EditorToolkit.EditorSandbox
         Custom = 1, // minimal step value defined by user
     }
 
-    public static class Sandbox // TODO: на ребилде надо ещё отписываться
+    public static class Sandbox 
     {
+
         // PREFERENCES ----------------------------------------------------------------------------
-        private static bool m_isRunning = true;
+        private static bool m_isRunning = false;
         /// <summary>
         /// Включает-выключает подписку основного цикла симулятора на EditorApplication.update.
         /// Подписки других объектов на сам симулятор остаются до их удаления тем или иным образом,
@@ -39,8 +43,9 @@ namespace Spiral.EditorToolkit.EditorSandbox
         /// Они не будут вызываться до тех пор, пока не будет включен симулятор.
         /// ВНИМАНИЕ: независимо от того, включена ли автмотическая очистка, при входе в цикл
         /// или выходе из нег все невалидные подписки будут уничтожены автоматически.
+        /// Сохраняется только между сессиями во избежание ряда неприятностей
         /// </summary>
-        public static bool isRunning // in editor prefs
+        public static bool isRunning 
         {
             get { return m_isRunning; }
             set
@@ -123,7 +128,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
         /// от вас, как и все возможные приятные и неприятные последствия выключения
         /// этого режима!
         /// </summary>
-        public static bool clearReferences = true; // in editor prefs
+        public static bool autoClearReferences = true; // in editor prefs
 
         /// <summary>
         /// Режим работы, запускающий симуляции в try-catch скобках и при обнаружении 
@@ -169,10 +174,17 @@ namespace Spiral.EditorToolkit.EditorSandbox
         public static event Action onAverageDeltaTimeUpdate;
 
         // PRIVATES FOR TIME CHECKING -------------------------------------------------------------
-        private static readonly Stopwatch m_watch = new Stopwatch();
-        private static float m_elapsedTime = 0;
-        private static int m_ticks = 0;
-        private static float m_averageTime = 0;
+        /// <summary>
+        /// Следит за временем, проходящим между циклами
+        /// </summary>
+        private static readonly Stopwatch m_cycleWatch;
+
+        /// <summary>
+        /// Следит за временем, затрачиваемым на выполнение нагрузки песчницы
+        /// </summary>
+        private static readonly Stopwatch m_actionWatch;
+
+
 
         // SUBSCRIPTIONS --------------------------------------------------------------------------
         /// <summary>
@@ -216,13 +228,44 @@ namespace Spiral.EditorToolkit.EditorSandbox
         //=========================================================================================
         static Sandbox()
         {
-            SandboxPrefs.LoadGlobal();
+            CompilationPipeline.compilationStarted -= OnCompilationStart;
+            CompilationPipeline.compilationStarted += OnCompilationStart;
+
+            EditorApplication.quitting -= OnEditorApplicationQuit;
+            EditorApplication.quitting += OnEditorApplicationQuit;
+
+            m_actionWatch = new Stopwatch();
+            m_cycleWatch  = new Stopwatch();
+
+            SandboxPrefs.LoadSettings();
+            if (SandboxPrefs.waitForRestore) 
+            {
+                SandboxPrefs.LoadSession();
+            }
+
             SandboxIsRunning(isRunning, SandboxSimulationCycle);
+        }
+
+        private static void FakeOnDestroy()
+        {
+            // doing some stuff here
+        }
+
+        private static void OnEditorApplicationQuit()
+        {
+            FakeOnDestroy();
+        }
+
+        private static void OnCompilationStart(object obj)
+        {
+            FakeOnDestroy();
+            SandboxPrefs.SaveSession();
         }
 
         private static void SandboxIsRunning(bool isRunning, EditorApplication.CallbackFunction callback)
         {
-            EditorApplication.update -= callback; // safety reasons
+            // safety reasons
+            EditorApplication.update -= callback;
             if (isRunning)
             {
                 EditorApplication.update += callback;
@@ -232,137 +275,160 @@ namespace Spiral.EditorToolkit.EditorSandbox
         private static void OnBeforeParamChange()
         {
             CalcAverageDeltaTime();
-            if (clearReferences) CleanNullReferences();
+            if (autoClearReferences) CleanNullReferences();
         }
 
         private static void PerformNormal()
         {
-            if (clearReferences) CleanNullReferences();
+            if (autoClearReferences) CleanNullReferences();
             try
             {
                 onSandboxCycle?.Invoke();
             }
             catch (Exception error)
             {
-                UnityEngine.Debug.LogWarning($"<color=red><b>Sandbox</b></color> has crushed down and will be switched off. " +
-                                 $"See stack trace below\n\n" + 
-                                 error.StackTrace); 
+                m_actionWatch.Stop();
+                LogWarning($"<color=red><b>Sandbox</b></color> has crushed down and will be switched off. " +
+                           $"See stack trace below\n\n" + 
+                           error.StackTrace); 
                 RemoveAll();
                 GC.Collect();
             }
             SceneView.RepaintAll();
         }
 
-
+        private static int currentSafeIDX = 0;
         public static void PerformSafe()
         {
-            if (clearReferences) CleanNullReferences();
-            int jidx = 0;
+            currentSafeIDX = -1;
+            if (autoClearReferences) CleanNullReferences();
+            
             try
             {
                 for (int i = 0; i < sandboxEvents.Count; i++)
                 {
-                    jidx = i;
+                    currentSafeIDX = i;
                     if (sandboxEvents[i].paused) continue;
                     sandboxEvents[i].callback.Invoke();
                 }
+                currentSafeIDX = -1;
+                SceneView.RepaintAll();
             }
             catch (Exception error)
             {
-                UnityEngine.Debug.LogWarning($"<color=red><b>Event {jidx}</b></color> has crushed down and will be switched off. " +
-                                 $"See stack trace below\n\n" + error.StackTrace);
-                RemoveCallback(jidx);
-                GC.Collect();
+                m_actionWatch.Stop();
+                string hex = SpiralStyles.hexDarkRed;
+
+                // С большой вероятностью UnityEditor упадёт до того, как try-catch
+                // каким-то чудом успеет обработать ошибки StackOverflow и OutOfMemory.
+                // Причины довольно прозаичны: см. как работают эти исключения в C# версий
+                // .NET выше 2.0. Но если уж это случилось, выведем большим шрифтом пользователю
+                // что он редиска и не лечится.
+                // Ошибку ThreadAbort мы не ловим просто потому что Unity умрёт сразу :)
+                if (error is StackOverflowException)
+                {
+                    LogWarning($"<color={hex}><b>STACK OVERFLOW WARNING</b></color>");
+                }
+                else if (error is OutOfMemoryException)
+                {
+                    LogWarning($"<color={hex}><b>OUT OF MEMORY WARNING</b></color>");
+                }
+
+                string ename = error.GetType().Name;
+                LogWarning($"<color={hex}><b>Event {currentSafeIDX}</b></color> has crushed down " +
+                           $"due to <color={hex}><b>{ename}</b></color> and will be switched off. " +
+                           $"See stack trace below:\n\n" +
+                           error.StackTrace);
+
+                RemoveCallback(currentSafeIDX);
             }
-            SceneView.RepaintAll();
         }
+
+        // TIME CHECKING --------------------------------------------------------------------------
+        private static float m_editorElapsedTime  = 0;
+        private static float m_overallEditorTicks = 0;
+        private static int m_editorTicks = 0;
 
         private static void CalcAverageDeltaTime()
         {
-            if (m_ticks == 0) return;
-            if (m_watch.IsRunning) m_watch.Stop();
+            if (m_editorTicks == 0) return;
+            if (m_cycleWatch.IsRunning) m_cycleWatch.Stop();
             CalcAverageDeltaTimeUnsafe();
         }
 
         private static void CalcAverageDeltaTimeUnsafe()
         {
-            averageDeltaTime = m_averageTime / m_ticks;
-            m_ticks = 0;
-            m_averageTime = 0;
+            averageDeltaTime = m_overallEditorTicks / m_editorTicks;
+            m_editorTicks = 0;
+            m_overallEditorTicks = 0;
             onAverageDeltaTimeUpdate?.Invoke();
-        }
-
-        private static void SandboxCycleCore()
-        {
-            if (minimalStepMode == SandboxMinimalStep.Uncontrollable)
-            {
-                editorDeltaTime = m_watch.Elapsed.Milliseconds * 0.001f;
-                if (secureMode) PerformSafe(); else PerformNormal();
-            }
-            else
-            {
-                m_elapsedTime += m_watch.Elapsed.Milliseconds * 0.001f;
-                editorDeltaTime = m_elapsedTime;
-                if (m_elapsedTime >= minimalTimeStep)
-                {
-                    m_elapsedTime = 0;
-                    if (secureMode) PerformSafe(); else PerformNormal();
-                }
-            }
         }
 
         private static void SandboxSimulationCycle()
         {
-            m_watch.Stop();
+            m_cycleWatch.Stop();
+            if (m_actionWatch.IsRunning) m_actionWatch.Stop();
 
-            if (m_averageTime > checkAverageDeltaEvery)
+            if (m_overallEditorTicks > checkAverageDeltaEvery)
             {
                 CalcAverageDeltaTimeUnsafe();
             }
             else
             {
-                m_ticks++;
-                m_averageTime += editorDeltaTime;
+                m_editorTicks++;
+                m_overallEditorTicks += editorDeltaTime;
+            }
+
+            if (minimalStepMode == SandboxMinimalStep.Uncontrollable)
+            {
+                editorDeltaTime = m_cycleWatch.Elapsed.Milliseconds * 0.001f;
+            }
+            else
+            {
+                m_editorElapsedTime += m_cycleWatch.Elapsed.Milliseconds * 0.001f;
+                editorDeltaTime = m_editorElapsedTime;
             }
 
             if (sandboxTotalCount == 0)
             {
-                m_watch.Start();
+                m_cycleWatch.Start();
                 return;
             }
 
-            SandboxCycleCore();
+            m_actionWatch.Start();
+            if (minimalStepMode == SandboxMinimalStep.Uncontrollable)
+            {
+                if (secureMode) PerformSafe(); else PerformNormal();
+            }
+            else
+            {
+                if (m_editorElapsedTime >= minimalTimeStep)
+                {
+                    m_editorElapsedTime = 0;
+                    if (secureMode) PerformSafe(); else PerformNormal();
+                }
+            }
+            m_actionWatch.Stop();
 
             onSandboxStep?.Invoke();
-            m_watch.Start();
+            m_cycleWatch.Start();
         }
 
         // EVENT FINDER ===========================================================================
         // Управление подписками
         //=========================================================================================
-        public class EventInfo
-        {
-            public bool paused;
-            public Action callback;
-            public bool hasReference;
-            public object referenceObject;
-            public bool isReferenceUnityObject;
-            public Type referenceObjectType;
-            public Type senderType;
-            public int idx;
-        }
 
         /// <summary>
         /// Берёт данные по его индексу (нужно для Sandbox Editor Window)
         /// </summary>
         /// <param name="idx">Индекс</param>
         /// <returns></returns>
-        public static EventInfo GetEventInfo(int idx)
+        public static SandboxEventInfo GetEventInfo(int idx)
         {
             if (idx < 0 || idx >= sandboxEvents.Count) return default;
 
             var sandboxEvent = sandboxEvents[idx];
-            EventInfo info = new EventInfo()
+            SandboxEventInfo info = new SandboxEventInfo()
             {
                 isReferenceUnityObject = sandboxEvent.isReferenceUnityObject,
                 callback = sandboxEvent.callback,
@@ -427,29 +493,32 @@ namespace Spiral.EditorToolkit.EditorSandbox
         public static bool AddCallback(object reference, Type senderType, Action callback)
         {
             if (senderType == null || callback == null) return false;
-            AddCallbackUnsafe(reference, senderType, callback);
-            return true;
-        }
-
-        public static bool AddCallback(object reference, object sender, Action callback)
-        {
-            if (reference == null) return AddCallback(sender, callback);
-            if (sender == null || callback == null) return false;
-            AddCallbackUnsafe(reference, sender.GetType(), callback);
+            AddCallbackNoValidation(reference, senderType, callback);
             return true;
         }
 
         public static bool AddCallback(object sender, Action callback)
         {
             if (sender == null || callback == null) return false;
-            AddCallbackUnsafe(null, sender.GetType(), callback);
+            AddCallbackNoValidation(sender, sender.GetType(), callback);
             return true;
         }
 
+        public static bool AddCallback(Type sender, Action callback)
+        {
+            if (sender == null || callback == null) return false;
+            AddCallbackNoValidation(null, sender, callback);
+            return true;
+        }
+
+        /// <summary>
+        /// Синхронизирует подписки песочницы с активным событием
+        /// (для !secure режима)
+        /// </summary>
         private static void RefreshCycleCalbacks()
         {
             int count = sandboxEvents.Count;
-            CoreFunctions.KillInvokations(ref onSandboxCycle);
+            EventsTools.KillInvokations(ref onSandboxCycle);
             for (int i = 0; i < count; i++)
             {
                 if (!sandboxEvents[i].paused)
@@ -458,11 +527,11 @@ namespace Spiral.EditorToolkit.EditorSandbox
         }
 
         /// <summary>
-        /// Заменяет коллбек по указанному адресу (без проверки валидности адреса)
+        /// Заменяет коллбек по указанному адресу (без валидации)
         /// </summary>
         /// <param name="callback">Коллбек</param>
         /// <param name="jidx">Адрес</param>
-        private static void ChangeCallbackUnsafe(Action callback, int jidx)
+        private static void ChangeCallbackNoValidation(Action callback, int jidx)
         {
             List<Action> actions = new List<Action>();
             int count = sandboxEvents.Count;
@@ -487,14 +556,20 @@ namespace Spiral.EditorToolkit.EditorSandbox
             sandboxEvents[jidx].UpdateCallback(callback);
         }
 
-        private static void AddCallbackUnsafe(object reference, Type sender, Action callback)
+        /// <summary>
+        /// Добавление коллбека (без валидации)
+        /// </summary>
+        /// <param name="reference">Референсный объект (если есть)</param>
+        /// <param name="sender">Класс-отправитель</param>
+        /// <param name="callback">Коллбек (реальный для нулевого референса, аналогичный для ненулевого)</param>
+        private static void AddCallbackNoValidation(object reference, Type sender, Action callback)
         {
             int jidx = reference != null ?
                        FindCallbackIDX(reference, sender, callback) :
                        FindCallbackIDX(callback);
-            if (jidx >= 0)  // мы добавим симуляцию заново, чтобы держать порядок симуляций такой же, как и порядок вызовов
+            if (jidx >= 0) // мы добавим симуляцию заново, чтобы держать порядок симуляций такой же, как и порядок вызовов
             {
-                ChangeCallbackUnsafe(callback, jidx);
+                ChangeCallbackNoValidation(callback, jidx);
             }
             else
             {
@@ -527,6 +602,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
         public static bool RemoveCallback(int callbackIDX)
         {
             if (callbackIDX < 0) return false;
+            if (callbackIDX >= sandboxEvents.Count) return false;
 
             Action callback = sandboxEvents[callbackIDX].callback;
             onSandboxCycle -= callback;
@@ -536,11 +612,11 @@ namespace Spiral.EditorToolkit.EditorSandbox
         }
 
         /// <summary>
-        /// Масс-килл
+        /// Масс-килл всех подписок
         /// </summary>
         public static void RemoveAll()
         {
-            CoreFunctions.KillInvokations(ref onSandboxCycle);
+            EventsTools.KillInvokations(ref onSandboxCycle);
             sandboxEvents.Clear();
         }
 
@@ -643,6 +719,26 @@ namespace Spiral.EditorToolkit.EditorSandbox
         }
 
         // SANDBOX EVENT DATA =========================================================================
+        // Учётки подписок песочницы
+        //=============================================================================================
+        /// <summary>
+        /// Данные о подписке, передаваемые вовне (в эдитор, в основном)
+        /// </summary>
+        public class SandboxEventInfo
+        {
+            public bool paused;
+            public Action callback;
+            public bool hasReference;
+            public object referenceObject;
+            public bool isReferenceUnityObject;
+            public Type referenceObjectType;
+            public Type senderType;
+            public int idx;
+        }
+
+        /// <summary>
+        /// Внутренние данные о подписке
+        /// </summary>
         private class SandboxEvent
         {
             public bool paused = false;
