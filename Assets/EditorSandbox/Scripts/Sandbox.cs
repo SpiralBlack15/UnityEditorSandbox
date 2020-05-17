@@ -24,15 +24,14 @@ using UnityEditor;
 using UnityEditor.Compilation;
 namespace Spiral.EditorToolkit.EditorSandbox
 {
-    public enum SandboxMinimalStep
-    {
-        Uncontrollable = -1, // no minimal step value
-        FixedUpdate = 0, // minimal step value == Time.fixedDeltaTime
-        Custom = 1, // minimal step value defined by user
-    }
-
     public static class Sandbox 
     {
+        public enum MinimalStep
+        {
+            Uncontrollable = -1, // no minimal step value
+            FixedUpdate = 0, // minimal step value == Time.fixedDeltaTime
+            Custom = 1, // minimal step value defined by user
+        }
 
         // PREFERENCES ----------------------------------------------------------------------------
         private static bool m_isRunning = false;
@@ -57,6 +56,8 @@ namespace Spiral.EditorToolkit.EditorSandbox
             }
         }
 
+        public static bool autoLaunch = true;
+
         private static float m_customMinimalTimeStep = 0.01f;
         /// <summary>
         /// Минимальный шаг симуляции в эдиторе в режиме Custom. При выставлении в ноль
@@ -80,11 +81,11 @@ namespace Spiral.EditorToolkit.EditorSandbox
             }
         }
 
-        private static SandboxMinimalStep m_minimalStepMode = SandboxMinimalStep.FixedUpdate;
+        private static MinimalStep m_minimalStepMode = MinimalStep.FixedUpdate;
         /// <summary>
         /// Текущий режим отсечки по минимальному шагу.
         /// </summary>
-        public static SandboxMinimalStep minimalStepMode // in editor prefs
+        public static MinimalStep minimalStepMode // in editor prefs
         {
             get { return m_minimalStepMode; }
             set
@@ -148,9 +149,9 @@ namespace Spiral.EditorToolkit.EditorSandbox
             {
                 switch (minimalStepMode)
                 {
-                    case SandboxMinimalStep.Uncontrollable: return 0;
-                    case SandboxMinimalStep.FixedUpdate: return Time.fixedDeltaTime;
-                    case SandboxMinimalStep.Custom: return customMinimalTimeStep;
+                    case MinimalStep.Uncontrollable: return 0;
+                    case MinimalStep.FixedUpdate: return Time.fixedDeltaTime;
+                    case MinimalStep.Custom: return customMinimalTimeStep;
                     default: return 0;
                 }
             }
@@ -379,7 +380,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
                 m_overallEditorTicks += editorDeltaTime;
             }
 
-            if (minimalStepMode == SandboxMinimalStep.Uncontrollable)
+            if (minimalStepMode == MinimalStep.Uncontrollable)
             {
                 editorDeltaTime = m_cycleWatch.Elapsed.Milliseconds * 0.001f;
             }
@@ -396,7 +397,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
             }
 
             m_actionWatch.Start();
-            if (minimalStepMode == SandboxMinimalStep.Uncontrollable)
+            if (minimalStepMode == MinimalStep.Uncontrollable)
             {
                 if (secureMode) PerformSafe(); else PerformNormal();
             }
@@ -578,6 +579,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
                 onSandboxCycle -= callback; // защита на всякий случай
                 onSandboxCycle += callback;
             }
+            if (autoLaunch) isRunning = true;
         }
 
         // REMOVE CALLBACKS =======================================================================

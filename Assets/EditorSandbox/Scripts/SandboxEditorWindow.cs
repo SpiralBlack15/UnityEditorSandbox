@@ -39,6 +39,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
             titleContent.text = "Editor Sandbox";
             scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Height(position.height));
             OpenStandartBack();
+            SpiralEditor.DrawScriptField(typeof(Sandbox));
 
             DrawMainSettings();
             DrawHealthMonitor();
@@ -54,8 +55,8 @@ namespace Spiral.EditorToolkit.EditorSandbox
             EditorGUI.indentLevel += 1;
 
             Sandbox.isRunning = EditorGUILayout.Toggle("Editor simulation", Sandbox.isRunning);
-            Sandbox.minimalStepMode = (SandboxMinimalStep)EditorGUILayout.EnumPopup("Step mode", Sandbox.minimalStepMode);
-            if (Sandbox.minimalStepMode == SandboxMinimalStep.Custom)
+            Sandbox.minimalStepMode = (Sandbox.MinimalStep)EditorGUILayout.EnumPopup("Step mode", Sandbox.minimalStepMode);
+            if (Sandbox.minimalStepMode == Sandbox.MinimalStep.Custom)
             {
                 GUIContent contentMTS = new GUIContent("Minimal time step");
                 Sandbox.customMinimalTimeStep = EditorGUILayout.FloatField(contentMTS, Sandbox.customMinimalTimeStep);
@@ -66,14 +67,10 @@ namespace Spiral.EditorToolkit.EditorSandbox
             Sandbox.secureMode = EditorGUILayout.Toggle("Secure mode", Sandbox.secureMode);
             EditorGUI.indentLevel -= 1;
 
-            SpiralEditor.BeginGroup(GroupType.Horizontal);
-            EditorGUILayout.Space();
-            if (SpiralEditor.Button("Save current prefs", GUILayout.Width(150)))
+            if (SpiralEditor.CenteredButton("Save current prefs"))
             {
                 SandboxPrefs.SaveSettings();
             }
-            EditorGUILayout.Space();
-            SpiralEditor.EndGroup();
 
             EditorGUILayout.Space();
             SpiralEditor.EndPanel();
@@ -89,20 +86,16 @@ namespace Spiral.EditorToolkit.EditorSandbox
 
             EditorGUILayout.LabelField("Average real time step: ", 
                                        $"{strAverage} s.",
-                                       SpiralStyles.normalLabel);
+                                       SpiralStyles.labelNormal);
             EditorGUILayout.LabelField("Events count: ", 
                                        $"{Sandbox.sandboxCurrentCount} / {Sandbox.sandboxTotalCount}",
-                                       SpiralStyles.normalLabel);
+                                       SpiralStyles.labelNormal);
             EditorGUI.indentLevel -= 1;
 
-            SpiralEditor.BeginGroup(GroupType.Horizontal);
-            EditorGUILayout.Space();
-            if (SpiralEditor.Button("Kill all events", GUILayout.Width(150)))
+            if (SpiralEditor.CenteredButton("Kill all events"))
             {
                 Sandbox.RemoveAll();
             }
-            EditorGUILayout.Space();
-            SpiralEditor.EndGroup();
 
             EditorGUILayout.Space();
             SpiralEditor.EndPanel();

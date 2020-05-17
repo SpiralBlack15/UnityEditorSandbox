@@ -37,8 +37,8 @@ namespace Spiral.EditorToolkit.EditorSandbox
         // GLOBAL SIMULATION PARAMS ---------------------------------------------------------------
         // Настройки симулятора, сохраняющиеся в любом случае
         //-----------------------------------------------------------------------------------------
-        [SerializeField]private SandboxMinimalStep m_minimalStepMode = SandboxMinimalStep.Uncontrollable;
-        public SandboxMinimalStep minimalStepMode
+        [SerializeField]private Sandbox.MinimalStep m_minimalStepMode = Sandbox.MinimalStep.Uncontrollable;
+        public Sandbox.MinimalStep minimalStepMode
         {
             get { return m_minimalStepMode; }
             set { m_minimalStepMode = value; }

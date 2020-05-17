@@ -22,26 +22,29 @@ namespace Spiral.EditorToolkit.EditorSandbox
     /// Поле, позволяющее вызывать с родительского методы, помеченные как RunInSandbox.
     /// </summary>
     [Serializable]
-    public class SandboxField
+    public class SandboxField : NonUnitySerializableClass
     {
         [SerializeReference]
         private object m_target = null;
         public object target { get { return m_target; } private set { m_target = value; } }
 
         [SerializeReference] // TODO: check it
-        private Type m_targetType;
+        private Type m_targetType = null;
         public Type targetType { get { return m_targetType; } }
 
-        [SerializeField] private int m_selectedTarget = 0;
+        [SerializeField]private int m_selectedTarget = 0;
         public int selectedTarget { get { return m_selectedTarget; } set { m_selectedTarget = value; } }
 
-        [SerializeField] private int m_selected = -1;
+        [SerializeField]private int m_selected = -1;
         public int selected
         {
             get
             {
                 // forced validation
-                if (m_selected < -1) m_selected = -1;
+                if (m_selected < -1)
+                {
+                    m_selected = -1;
+                }    
                 if (m_selected >= m_methodNames.Count) // achtung!
                 {
                     Update();
@@ -133,6 +136,7 @@ namespace Spiral.EditorToolkit.EditorSandbox
         }
 
 #if UNITY_EDITOR
+        public bool editorFoldout;
         public void LaunchInSandbox()
         {
             if (!InitializeAction()) return;

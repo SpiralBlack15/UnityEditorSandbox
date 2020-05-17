@@ -11,7 +11,6 @@
 // SOFTWARE.
 // *********************************************************************************
 
-using System.Collections.Generic;
 using UnityEngine;
 using Spiral.Core;
 
@@ -24,71 +23,24 @@ namespace Spiral.EditorToolkit.EditorSandbox
 
 #if UNITY_EDITOR
     [CustomPropertyDrawer(typeof(SandboxField))]
-    public class SandboxFieldDrawer : PropertyDrawer
+    public class SandboxFieldDrawer : SpiralPropertyDrawer
     {
-        private readonly float elementHeight = 18;
-        private readonly float edgeIndentY = 2;
-        private readonly float edgeIndentX = 3;
-        private readonly float innerEdgeIndentX = 5;
-        private readonly float innerEdgeIndentY = 3;
-        private readonly float spaceY = 3;
-        private readonly float spaceX = 3;
-        private readonly int rows = 4;
+        private static MonoScript m_script;
+        private static MonoScript monoScript { get { return CahsedMono<SandboxFieldDrawer>(ref m_script); } }
 
-        public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+        protected override Borders GetOutline() { return new Borders(2, 3, 2, 3); }
+        protected override Borders GetInnerStroke() { return new Borders(5, 7, 5, 5); }
+        protected override Vector2 GetGridSpace() { return new Vector2(2, 3); }
+        protected override float GetElementHeight() { return 18; }
+        protected override int GridColumnCount() { return 2; }
+
+        private string[] methodNames = null;
+        private SandboxField sandboxField = null;
+        private object sandboxTarget = null;
+        private void InitCurrentSandboxField(SerializedProperty property)
         {
-            return elementHeight * rows +
-                   spaceY * (rows - 1) +
-                   (innerEdgeIndentY + edgeIndentY) * 2 + 1;
-        }
-
-        private float GetRowY(int row)
-        {
-            float space = row == 0 ? 0 : spaceY * row;
-            return elementHeight * row + space + innerEdgeIndentY + edgeIndentY;
-        }
-
-        private string[] GetObjectNames(List<object> hierarchy)
-        {
-            string[] names = new string[hierarchy.Count];
-
-            int d = 0;
-            for (int i = 0; i < names.Length; i++)
-            {
-                if (hierarchy[i] == null)
-                {
-                    names[i] = "[null]";
-                    continue;
-                }
-
-                string variableName = serializationPath[i + d];
-                if (variableName == "Array")
-                {
-                    d++;
-                    variableName = serializationPath[i + d];
-                }
-                string typeName = hierarchy[i].GetType().Name;
-                variableName = variableName.FirstLetterCapitalization();
-
-                names[i] = $"{variableName} ({typeName})";
-            }
-            return names;
-        }
-
-        List<object> hierarchy = null;
-        List<string> serializationPath = null;
-        string[] objectNames = null;
-        string[] methodNames = null;
-        SandboxField sandboxField = null;
-        object sandboxTarget = null;
-
-        private void Init(SerializedProperty property)
-        {
-            serializationPath = property.GetPathNodes().ToList();
-            serializationPath.Insert(0, property.GetRootParent().name);
-            hierarchy = property.GetSerializationHierarchy(false);
-
-            objectNames = GetObjectNames(hierarchy);
+            InitSeraizliationTree(property);
+            InitSerializationTreeNames();
 
             object sandboxObject = hierarchy.GetLast();
             if (sandboxObject == null) return; // может случаться при вложенной сериализации
@@ -107,90 +59,78 @@ namespace Spiral.EditorToolkit.EditorSandbox
             return;
         }
 
+
+        protected override int GridRowCount()
+        {
+            if (sandboxField == null) return 1;
+            else return sandboxField.editorFoldout ? 4 : 1; 
+        }
+
+        public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+        {
+            InitCurrentSandboxField(property);
+            return GetGridedPropertyHeight(0, true);
+        }
+
         public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
         {
-            Init(property);
-            if (sandboxField == null || sandboxTarget == null) return; 
+            // sandboxField должен подтянуться из GetPropertyHeight, т.к. тот вызывается до OnGUI
+            if (sandboxField == null || sandboxTarget == null) return;
             // скипаем отрисовку - такая ситуация может возникать в случае, если объект
             // находится в составе массива/листа/и т.п., и только что был автоматически создан
             // и/или в массиве появилась новая позиция
 
-            // ------------------------------------------------------------------------------------
-            EditorGUI.BeginProperty(position, label, property);
-
-            Rect indentedRect = EditorGUI.IndentedRect(position);
-
-            float startX = indentedRect.x;
-            float startY = indentedRect.y;
-            float width  = indentedRect.width;
-            float height = indentedRect.height;
-
-            float indentX = startX - position.x;
-
-            float elementStartX = startX - edgeIndentX;
-
-            float innerWidth = width - spaceX - edgeIndentX - 2;
-            float halfInnerWidth = innerWidth * 0.5f - innerEdgeIndentX * 2;
-            float nameLX = startX + innerEdgeIndentX;
-
-            float row0Y = startY + GetRowY(0);
-            float row1Y = startY + GetRowY(1);
-            float row2Y = startY + GetRowY(2);
-            float row3Y = startY + GetRowY(3);
-
-            float col1X = nameLX + halfInnerWidth + spaceX;
-            float col1W = startX + width - col1X - innerEdgeIndentY - edgeIndentX;
-
+            InitializeSizesGeneral(position);
+            InitializeGrid();
 
             // подложка
-            Rect boxRect = new Rect(elementStartX,
-                                    startY + edgeIndentY,
-                                    width + edgeIndentX,
-                                    height - edgeIndentY);
-            GUI.Box(boxRect, "", SpiralStyles.panel);
+            DrawBackgroundPanel();
 
             // название переменной
-            Rect propertyNameRect = new Rect(nameLX, row0Y, halfInnerWidth, elementHeight);
-            GUI.Label(propertyNameRect, label, SpiralStyles.smallBoldLabel);
+            Rect rectPropertyName = GetGridCell(0, 0, false);
+            bool newFoldout = DrawFoldout(sandboxField.editorFoldout, label, rectPropertyName, SpiralStyles.foldoutPropertySmallBold);
 
-            GUI.enabled = false;
-            MonoScript monoScript = SpiralEditorTools.GetMonoScript(GetType());
-            Rect rect = new Rect(col1X - indentX, row0Y, col1W + indentX, elementHeight);
-            EditorGUI.ObjectField(rect, monoScript, typeof(MonoScript), false);
-            GUI.enabled = true;
+            // скрипт проперти
+            Rect rectScript = GetGridCell(0, 1, false);
+            DrawScriptFieldRect(monoScript, rectScript);
 
-            // выбор объекта инициализации
-            Rect selectTargetContentRect = new Rect(nameLX, row1Y, halfInnerWidth, elementHeight);
-            GUI.Label(selectTargetContentRect, "Target", SpiralStyles.smallBoxedLabel);
-            Rect selectParent = new Rect(col1X - indentX, row1Y, col1W + indentX, elementHeight);
-            if (sandboxField.selectedTarget < 0 || sandboxField.selectedTarget >= hierarchy.Count)
-                sandboxField.selectedTarget = 0;
-            sandboxField.selectedTarget = EditorGUI.Popup(selectParent,
-                                                          sandboxField.selectedTarget,
-                                                          objectNames,
-                                                          SpiralStyles.miniPopupFont);
-
-            // пространство метода
-            Rect methodNamespaceRect = new Rect(nameLX, row2Y, halfInnerWidth, elementHeight);
-            GUI.Label(methodNamespaceRect, "Method", SpiralStyles.smallBoxedLabel);
-
-            // выпадающий списоок
-            Rect popupRect = new Rect(col1X - indentX, row2Y, col1W + indentX, elementHeight);
-            sandboxField.selected = EditorGUI.Popup(popupRect,
-                                                    sandboxField.selected,
-                                                    methodNames,
-                                                    SpiralStyles.miniPopupFont);
-
-            // положение кнопки
-            Rect buttonPos = new Rect(col1X, row3Y, col1W, elementHeight);
-            GUI.enabled = methodNames.Length != 0;
-            if (GUI.Button(buttonPos, "Run in simulator"))
+            if (sandboxField.editorFoldout)
             {
-                sandboxField.LaunchInSandbox();
-            }
-            GUI.enabled = true;
+                // подпись объекта
+                Rect rectSelectTargetContent = GetGridCell(1, 0, true);
+                GUI.Label(rectSelectTargetContent, "Target", SpiralStyles.labelSmallBoxed);
 
-            EditorGUI.EndProperty();
+                // выбор объекта инициализации
+                Rect rectSelectTarget = GetGridCell(1, 1, false);
+                if (sandboxField.selectedTarget < 0 || sandboxField.selectedTarget >= hierarchy.Count)
+                    sandboxField.selectedTarget = 0;
+                sandboxField.selectedTarget = EditorGUI.Popup(rectSelectTarget,
+                                                              sandboxField.selectedTarget,
+                                                              objectNames,
+                                                              SpiralStyles.popupSmall);
+
+                // подпись метода
+                Rect rectSelectMethodContent = GetGridCell(2, 0, true);
+                GUI.Label(rectSelectMethodContent, "Method", SpiralStyles.labelSmallBoxed);
+
+                // выпадающий списоок
+                Rect rectSelectMethod = GetGridCell(2, 1, false);
+                sandboxField.selected = EditorGUI.Popup(rectSelectMethod,
+                                                        sandboxField.selected,
+                                                        methodNames,
+                                                        SpiralStyles.popupSmall);
+
+                // кнопка запуска симуляции
+                Rect rectRunButton = GetGridCell(3, 1, true);
+                GUI.enabled = methodNames.Length != 0;
+                if (GUI.Button(rectRunButton, "Run in simulator"))
+                {
+                    sandboxField.LaunchInSandbox();
+                }
+                GUI.enabled = true;
+            }
+
+            sandboxField.editorFoldout = newFoldout;
         }
     }
 #endif
